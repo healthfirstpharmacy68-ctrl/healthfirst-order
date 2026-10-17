@@ -197,7 +197,7 @@ function medSub(){return r2(lines().reduce(function(a,l){return a+(isMed(l.p)?l.
 function payable(){var ms=medSub(),r=0,lb="";
  if(ms>2000){r=17;lb="17% off medicines (medicines above ₹2,000)"}
  else if(ms>0){r=disc.rep?15:10;lb=disc.rep?"15% off medicines (repeat customer)":"10% off medicine MRP"}
- disc.pct=r;disc.label=lb;disc.amt=r?r2(ms*r/100):0;return r2(total()-disc.amt)}
+ disc.pct=r;disc.label=lb;disc.amt=r?Math.floor(Math.round(ms*100)*r/100+1e-9)/100:0;return total()-disc.amt}
 function billUI(){var b=$("bill");if(!b)return;var t=total(),pay=payable(),ms=medSub(),n="";
  if(disc.pct)n='<div style="color:var(--ok)"><span>'+disc.label+'</span><span>−'+rs(disc.amt)+'</span></div>';
  var h=ms==0?"Discounts apply to medicines only.":ms>2000?"":"Add medicines worth more than "+rs(2000-ms)+" for 17% off."+(disc.rep?"":" Repeat customers get 15% off.");
@@ -233,7 +233,7 @@ window.place=async function(){
  if(disc.ph!=p||disc.rep===null){disc.ph=p;disc.rep=await window.hfRepeat(p)}
  var pay=document.querySelector('input[name=pay]:checked').value,pre=pay=="Prepaid UPI",utr="",pb=$("pbtn");if(pb){if(pb.disabled)return;pb.disabled=true}
  var L=lines(),o={id:"HF"+Date.now().toString(36).slice(-5).toUpperCase(),name:n,phone:p,addr:a+", "+$("cpin").value,pay:pay,utr:utr,ps:pre?"Awaiting payment":"",items:L.map(function(l){return{n:l.p.n,q:l.q,m:l.p.m,pid:l.p.id,rx:l.p.rx?1:0,med:isMed(l.p)?1:0}}),total:payable(),sub:total(),disc:disc.amt,dpct:disc.pct,dlbl:disc.label,st:"New",t:Date.now(),rx:hasRx,rxs:hasRx?"Pending":""};
- try{var r=doc(collection(db,"orders"));if(hasRx)await setDoc(doc(db,"rx",r.id),{img:RXIMG,t:Date.now()});await setDoc(r,o);RXIMG="";try{await setDoc(doc(db,"customers",p),{orders:increment(1),last:Date.now()},{merge:true})}catch(e){}var m=JSON.parse(localStorage.getItem("hf_mine")||"[]");m.unshift(r.id);localStorage.setItem("hf_mine",JSON.stringify(m.slice(0,30)))}catch(e){if(pb)pb.disabled=false;toast("Could not place order. Check internet and try again");return}
+ try{var r=doc(collection(db,"orders"));if(hasRx)await setDoc(doc(db,"rx",r.id),{img:RXIMG,t:Date.now()});await setDoc(r,o);RXIMG="";try{await setDoc(doc(db,"customers",p),{orders:increment(1),last:Date.now()},{merge:true})}catch(e){}var m=JSON.parse(localStorage.getItem("hf_mine")||"[]");m.unshift(r.id);localStorage.setItem("hf_mine",JSON.stringify(m.slice(0,30)))}catch(e){if(pb)pb.disabled=false;console.error("Order failed",e);toast(e&&e.code=="permission-denied"?"Order could not be saved (shop setup issue). Please call +91 84520 86845":"Could not place order. Check internet and try again");return}
  cart={};renderShop();
  if(pre){showPay({doc:r.id,id:o.id,amt:o.total});return}
  $("sheet").dataset.v="done";$("sheet").innerHTML='<h2 style="margin-top:0">Order placed ✅</h2><div class="box">Order <b>'+o.id+'</b> is confirmed. '+(o.rx?"Our pharmacist will check your prescription, then pack it and deliver in about 15–30 minutes. ":"We will pack it right away and deliver in about 15–30 minutes. ")+"Pay "+rs(o.total)+" on delivery."+'</div><button class="btn" style="width:100%" onclick="closeOv();mode(\'mine\')">Track my order</button>'};
@@ -288,7 +288,7 @@ window.rxDecide=async function(k,ok){var o=S.orders[k];
  if(!confirm("Remove the prescription medicines and keep the other "+keep.length+" item(s)?"))return;
  var isM=function(i){if(i.med!==undefined)return i.med;var p=S.products.filter(function(x){return x.id==i.pid})[0];return p&&isMed(p)?1:0};
  var sub=keep.reduce(function(a,i){return a+i.m*i.q},0),ms=keep.reduce(function(a,i){return a+(isM(i)?i.m*i.q:0)},0);
- var pct=ms>2000?17:(o.dpct==17?10:(o.dpct||0));if(!ms)pct=0;var dc=pct?Math.round(ms*pct)/100:0;
+ var pct=ms>2000?17:(o.dpct==17?10:(o.dpct||0));if(!ms)pct=0;var dc=pct?Math.floor(Math.round(ms*100)*pct/100+1e-9)/100:0;
  try{await updateDoc(doc(db,"orders",o._id),{rxs:"Declined",items:keep,sub:r2(sub),disc:dc,dpct:pct,total:r2(sub-dc)});toast("Prescription medicines removed. New total "+rs(sub-dc));closeOv()}catch(e){toast("Update failed")}};
 window.markPaid=async function(k){try{await updateDoc(doc(db,"orders",S.orders[k]._id),{ps:"Paid"});toast("Marked paid")}catch(e){toast("Update failed")}};
 window.payAgain=function(d,i,a){showPay({doc:d,id:i,amt:a})};
