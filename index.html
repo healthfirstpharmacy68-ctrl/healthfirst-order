@@ -70,6 +70,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;b
   <h2>Orders</h2><div class="scroll box"><table id="ordT"></table></div>
   <h2>Inventory and prices</h2><div class="scroll box"><table id="invT"></table></div>
   <h2>Add product</h2><div class="box"><input id="np" placeholder="Product name"><input id="nu" placeholder="Pack size, e.g. 10 tablets"><input id="nm" type="number" placeholder="Price (₹)"><input id="ns" type="number" placeholder="Stock"><select id="nc"></select><label class="o"><input type="checkbox" id="nr"> Needs prescription</label><label>Product photo (optional)</label><input type="file" id="nimg" accept="image/*"><button class="btn" onclick="addProd()">Add product</button></div>
+  <h2>Upload products from CSV</h2><div class="box"><div style="font-size:13px;color:var(--mut)">Columns: <b>name, pack size, price, stock, category, prescription</b>. Category must be one of: Medicines, Vitamins, Baby care, Personal care, Health devices, Snacks &amp; drinks, Stationery, Daily needs. Prescription is yes or no. If a product with the same name and pack size already exists, its price, stock, category and prescription are updated instead of adding a copy.</div>
+  <button class="btn sec" style="margin:8px 0" onclick="csvSample()">Download sample CSV</button>
+  <input type="file" id="csvf" accept=".csv,text/csv" onchange="csvRead(this)"><div id="csvp"></div></div>
  </div>
 </section>
 </main>
@@ -125,7 +128,7 @@ function renderAdmin(){$("gate").classList.toggle("hide",admin);$("dash").classL
  var low=S.products.filter(function(p){return p.s<=10}).length;
  $("kpis").innerHTML=[["Orders today",today.length],["Sales today",rs(today.reduce(function(a,o){return a+o.total},0))],["Pending",S.orders.filter(function(o){return o.st=="New"||o.st=="Packing"}).length],["Low stock items",low]].map(function(k){return'<div class="kpi">'+k[0]+'<b>'+k[1]+'</b></div>'}).join("");
  $("ordT").innerHTML='<tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr>'+(S.orders.length?S.orders.map(function(o,k){var nx=ST[ST.indexOf(o.st)+1];return'<tr><td><b>'+o.id+'</b><br><small>'+new Date(o.t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})+'</small></td><td>'+o.name+'<br><small>'+o.phone+' · '+o.addr+'</small>'+(o.rx?'<br><small style="color:var(--bad)">Rx check needed</small>':'')+'</td><td><small>'+o.items.map(function(i){return i.n+" ×"+i.q}).join("<br>")+'</small></td><td>'+rs(o.total)+(o.disc?'<br><small>Discount '+rs(o.disc)+' ('+o.dpct+'%)</small>':'')+'<br><small>'+o.pay+(o.pay!="Prepaid UPI"||o.st=="Cancelled"?'':(o.ps=="Paid"||o.utr?'<br><b style="color:var(--ok)">Paid ✅</b>':'<br><b style="color:var(--bad)">Check Kotak for '+rs(o.total)+'</b><br><button class="btn" style="padding:6px 10px;margin-top:4px" onclick="markPaid('+k+')">Mark paid</button>'))+'</small></td><td><span class="tag st-'+o.st.split(" ")[0]+'">'+o.st+'</span></td><td>'+(nx&&o.st!="Cancelled"?'<button class="btn" onclick="adv('+k+')">Mark '+nx.toLowerCase()+'</button> ':'')+(o.st=="New"||o.st=="Packing"?'<button class="btn sec" onclick="cancelO('+k+')">Cancel</button>':'')+'</td></tr>'}).join(""):'<tr><td colspan="6">No orders yet. New customer orders appear here.</td></tr>');
- $("invT").innerHTML='<tr><th>Product</th><th>Category</th><th>Price ₹</th><th>Stock</th><th>Photo</th></tr>'+S.products.map(function(p){return'<tr><td>'+p.i+' '+p.n+' <small>'+p.u+'</small></td><td>'+p.c+'</td><td><input type="number" style="width:80px" value="'+p.m+'" onchange="upd('+p.id+',\'m\',this.value)"></td><td><input type="number" style="width:80px" value="'+p.s+'" onchange="upd('+p.id+',\'s\',this.value)"></td><td><label style="cursor:pointer;white-space:nowrap">'+(p.img?'<img src="'+p.img+'" alt="" style="width:44px;height:44px;object-fit:contain;vertical-align:middle;margin-right:6px">':'')+'<span class="btn sec" style="padding:6px 10px;display:inline-block">'+(p.img?'Change':'Upload')+'</span><input type="file" accept="image/*" hidden onchange="photo('+p.id+',this)"></label></td></tr>'}).join("");
+ $("invT").innerHTML='<tr><th>Product name</th><th>Pack size</th><th>Category</th><th>Rx</th><th>Price ₹</th><th>Stock</th><th>Photo</th><th></th></tr>'+S.products.map(function(p){var q=function(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")};return'<tr><td><input style="min-width:200px" value="'+q(p.n)+'" onchange="updT('+p.id+',\'n\',this.value)"></td><td><input style="width:120px" value="'+q(p.u)+'" onchange="updT('+p.id+',\'u\',this.value)"></td><td><select style="width:150px" onchange="updT('+p.id+',\'c\',this.value)">'+CATS.map(function(c){return'<option'+(c[0]==p.c?' selected':'')+'>'+c[0]+'</option>'}).join("")+'</select></td><td><input type="checkbox" style="width:auto"'+(p.rx?' checked':'')+' title="Needs prescription" onchange="updT('+p.id+',\'rx\',this.checked?1:0)"></td><td><input type="number" style="width:80px" value="'+p.m+'" onchange="upd('+p.id+',\'m\',this.value)"></td><td><input type="number" style="width:80px" value="'+p.s+'" onchange="upd('+p.id+',\'s\',this.value)"></td><td><label style="cursor:pointer;white-space:nowrap">'+(p.img?'<img src="'+p.img+'" alt="" style="width:44px;height:44px;object-fit:contain;vertical-align:middle;margin-right:6px">':'')+'<span class="btn sec" style="padding:6px 10px;display:inline-block">'+(p.img?'Change':'Upload')+'</span><input type="file" accept="image/*" hidden onchange="photo('+p.id+',this)"></label></td><td><button class="btn sec" style="padding:6px 10px;color:var(--bad)" onclick="delProd('+p.id+')">Delete</button></td></tr>'}).join("");
  $("nc").innerHTML=CATS.map(function(c){return"<option>"+c[0]+"</option>"}).join("")}
 function adv(k){var o=S.orders[k];o.st=ST[ST.indexOf(o.st)+1];save();renderAdmin()}
 function cancelO(k){var o=S.orders[k];o.st="Cancelled";o.items.forEach(function(i){S.products.forEach(function(p){if(p.n==i.n)p.s+=i.q})});save();renderAdmin();renderShop()}
@@ -154,6 +157,31 @@ function showPay(p){curPay=p;var apps=upiApps(p),sh=$("sheet");sh.dataset.v="pay
 </script>
 <script>
 var disc={amt:0,pct:0,label:"",rep:null,ph:""};
+var CSVROWS=[];
+function csvParse(t){var R=[],r=[],c="",q=false;t=t.replace(/^\uFEFF/,"");for(var i=0;i<t.length;i++){var ch=t[i];
+ if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}
+ else if(ch=='"')q=true;else if(ch==","){r.push(c);c=""}else if(ch=="\n"||ch=="\r"){if(ch=="\r"&&t[i+1]=="\n")i++;r.push(c);c="";if(r.join("").trim())R.push(r);r=[]}else c+=ch}
+ r.push(c);if(r.join("").trim())R.push(r);return R}
+function csvSample(){var s="name,pack size,price,stock,category,prescription\nParacetamol 650mg,Strip of 15,35,50,Medicines,no\nAzithromycin 500mg,Strip of 3,120,20,Medicines,yes\nSprite,500 ml,35,24,Snacks & drinks,no\n";
+ var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([s],{type:"text/csv"}));a.download="healthfirst-products-sample.csv";document.body.appendChild(a);a.click();a.remove()}
+function csvRead(el){var fl=el.files[0];if(!fl)return;var r=new FileReader();r.onload=function(){
+ var rows=csvParse(r.result),h=(rows.shift()||[]).map(function(x){return x.trim().toLowerCase()});
+ function col(){for(var i=0;i<arguments.length;i++){var k=h.indexOf(arguments[i]);if(k>-1)return k}return -1}
+ var iN=col("name","product","product name"),iU=col("pack size","pack","unit","size"),iM=col("price","mrp","price ₹","rate"),iS=col("stock","qty","quantity"),iC=col("category"),iR=col("prescription","rx");
+ if(iN<0||iM<0){$("csvp").innerHTML='<p style="color:var(--bad)">The first row must have column names, including at least <b>name</b> and <b>price</b>.</p>';return}
+ CSVROWS=[];var bad=[];
+ rows.forEach(function(x,k){var g=function(i){return i<0?"":String(x[i]||"").trim()};var n=g(iN),m=parseFloat(g(iM).replace(/[₹,\s]/g,"")),cn=g(iC).toLowerCase();
+  var cat=CATS.filter(function(c){return c[0].toLowerCase()==cn||c[0].toLowerCase().replace(" & "," and ")==cn})[0];
+  var line=k+2;if(!n){bad.push("Row "+line+": name missing");return}if(!(m>0)){bad.push("Row "+line+" ("+n+"): price missing or 0");return}
+  if(!cat){if(cn){bad.push("Row "+line+" ("+n+"): unknown category \""+g(iC)+"\"");return}cat=CATS[0]}
+  CSVROWS.push({n:n,u:g(iU)||"1 unit",m:Math.round(m*100)/100,s:Math.max(0,parseInt(g(iS))||0),c:cat[0],i:cat[1],rx:/^(y|yes|1|true|rx)$/i.test(g(iR))?1:0})});
+ var key=function(p){return(p.n+"|"+p.u).toLowerCase()},have={};S.products.forEach(function(p){have[key(p)]=1});
+ var upd=CSVROWS.filter(function(p){return have[key(p)]}).length;
+ $("csvp").innerHTML='<div class="box" style="margin-bottom:0"><b>'+CSVROWS.length+' products ready</b>: '+(CSVROWS.length-upd)+' new, '+upd+' to update.'+
+  (bad.length?'<div style="color:var(--bad);font-size:13px;margin-top:6px">'+bad.length+' rows skipped:<br>'+bad.slice(0,15).join("<br>")+(bad.length>15?"<br>…":"")+'</div>':'')+
+  '<div class="scroll" style="max-height:220px;overflow:auto;margin-top:8px"><table><tr><th>Name</th><th>Pack</th><th>Price</th><th>Stock</th><th>Category</th><th>Rx</th></tr>'+CSVROWS.slice(0,50).map(function(p){return'<tr><td>'+p.n.replace(/</g,"&lt;")+'</td><td>'+p.u.replace(/</g,"&lt;")+'</td><td>'+p.m+'</td><td>'+p.s+'</td><td>'+p.c+'</td><td>'+(p.rx?"Yes":"")+'</td></tr>'}).join("")+'</table></div>'+
+  (CSVROWS.length?'<button class="btn" id="csvb" style="width:100%;margin-top:8px" onclick="csvImport()">Import '+CSVROWS.length+' products</button>':'')+'</div>'};
+ r.readAsText(fl)}
 function isMed(p){return p.c=="Medicines"}
 function medSub(){return lines().reduce(function(a,l){return a+(isMed(l.p)?l.p.m*l.q:0)},0)}
 function payable(){var ms=medSub(),r=0,lb="";
@@ -173,7 +201,7 @@ function phoneChk(){var p=$("cp").value.trim();if(!/^\d{10}$/.test(p)){disc.rep=
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,collection,doc,addDoc,getDoc,setDoc,updateDoc,writeBatch,onSnapshot,query,orderBy,increment} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getFirestore,collection,doc,addDoc,getDoc,setDoc,updateDoc,deleteDoc,writeBatch,onSnapshot,query,orderBy,increment} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 const app=initializeApp({apiKey:"AIzaSyAwLqMRkfA48DyuoD5NiwM4cka-g6BMM2U",authDomain:"healthfirstpharmacyapp.firebaseapp.com",projectId:"healthfirstpharmacyapp",storageBucket:"healthfirstpharmacyapp.firebasestorage.app",messagingSenderId:"239239313479",appId:"1:239239313479:web:03e374a258ddbeac459962"});
 const auth=getAuth(app),db=getFirestore(app);
 S.products=[];S.orders=[];renderShop();
@@ -217,6 +245,20 @@ window.addProd=async function(){var n=$("np").value.trim(),m=+$("nm").value;if(!
  try{await setDoc(doc(db,"products",String(id)),{id:id,img:img,n:n,u:$("nu").value||"1 unit",m:m,rx:$("nr").checked?1:0,c:c,i:ic,s:+$("ns").value||0});["np","nu","nm","ns","nimg"].forEach(function(i){$(i).value=""});toast("Product added")}catch(e){toast("Could not add product")}};
 function shrink(f){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var s=Math.min(1,360/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);var x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",0.72))};im.onerror=no;im.src=r.result};r.onerror=no;r.readAsDataURL(f)})}
 window.photo=async function(id,el){if(!el.files[0])return;try{var d=await shrink(el.files[0]);await updateDoc(doc(db,"products",String(id)),{img:d});toast("Photo saved")}catch(e){toast("Could not save photo")}};
+window.updT=async function(id,f,v){var u={};if(f=="n"||f=="u"){v=String(v).trim();if(!v){toast("This cannot be empty");renderAdmin();return}}u[f]=v;
+ if(f=="c"){var c=CATS.filter(function(x){return x[0]==v})[0];if(c)u.i=c[1]}
+ try{await updateDoc(doc(db,"products",String(id)),u);toast("Updated")}catch(e){toast("Update failed")}};
+window.delProd=async function(id){var p=S.products.filter(function(x){return x.id==id})[0];if(!p||!confirm("Delete "+p.n+"? Customers will no longer see it."))return;
+ try{await deleteDoc(doc(db,"products",String(id)));toast("Product deleted")}catch(e){toast("Could not delete")}};
+window.csvImport=async function(){if(!CSVROWS.length)return;var b=$("csvb");b.disabled=true;b.textContent="Importing…";
+ var key=function(p){return(p.n+"|"+p.u).toLowerCase()},have={};S.products.forEach(function(p){have[key(p)]=p});
+ var base=Date.now(),done=0;
+ try{for(var i=0;i<CSVROWS.length;i+=400){var bt=writeBatch(db);CSVROWS.slice(i,i+400).forEach(function(p,j){var ex=have[key(p)];
+   if(ex)bt.update(doc(db,"products",String(ex.id)),{m:p.m,s:p.s,c:p.c,i:p.i,rx:p.rx});
+   else{var id=base+i+j;bt.set(doc(db,"products",String(id)),{id:id,img:"",n:p.n,u:p.u,m:p.m,rx:p.rx,c:p.c,i:p.i,s:p.s})}});
+  await bt.commit();done=Math.min(CSVROWS.length,i+400)}
+  toast(done+" products imported");CSVROWS=[];$("csvp").innerHTML='<p style="color:var(--ok)">'+done+' products imported.</p>';$("csvf").value=""}
+ catch(e){b.disabled=false;b.textContent="Retry import";toast("Import stopped after "+done+" products. Check internet and retry")}};
 window.markPaid=async function(k){try{await updateDoc(doc(db,"orders",S.orders[k]._id),{ps:"Paid"});toast("Marked paid")}catch(e){toast("Update failed")}};
 window.payAgain=function(d,i,a){showPay({doc:d,id:i,amt:a})};
 window.hfRepeat=async function(p){try{var d=await getDoc(doc(db,"customers",p));if(d.exists())return true}catch(e){}return JSON.parse(localStorage.getItem("hf_mine")||"[]").length>0};
