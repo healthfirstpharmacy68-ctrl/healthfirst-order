@@ -788,7 +788,9 @@ window.openTrack=function(did){if(trUn){trUn();trUn=null}var sh=$("sheet");sh.da
 window.closeTrack=function(){if(trUn){trUn();trUn=null}closeOv()};
 window.doCancel=async function(did,why){var b=$("crb");if(b)b.disabled=true;
  try{await updateDoc(doc(db,"orders",did),{st:"Cancelled",cancelReason:why,cancelBy:"customer",cancelAt:Date.now()});closeCk();toast("Order cancelled")}
- catch(e){if(b)b.disabled=false;toast(e&&e.code=="permission-denied"?"This order is already being packed, so it can’t be cancelled. Please call the shop.":"Could not cancel. Check internet and try again")}};
+ catch(e){if(b)b.disabled=false;var st="";try{var d=await getDoc(doc(db,"orders",did));st=d.exists()?d.data().st:""}catch(x){}
+  var L={"Packing":"being packed","Out for delivery":"out for delivery","Delivered":"delivered","Cancelled":"already cancelled"};
+  toast(st&&st!="New"?"This order is "+(L[st]||st)+", so it can’t be cancelled. Please call the shop.":e&&e.code=="permission-denied"?"Cancelling is not switched on in the shop’s database yet. Please call +91 84520 86845 and we will cancel it.":"Could not cancel. Check internet and try again")}};
 window.seedProducts=async function(){if(S.products.length){toast("Products already loaded");return}
  var b=writeBatch(db);SEED.forEach(function(r,i){b.set(doc(db,"products",String(i+1)),{id:i+1,n:r[0],u:r[1],m:r[2],rx:r[3],c:r[4],i:r[5],s:40})});await b.commit();toast("Starter products loaded")};
 </script>
